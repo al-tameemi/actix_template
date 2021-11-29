@@ -1,13 +1,22 @@
-FROM rust:1.56 as build
-ENV PKG_CONFIG_ALLOW_CROSS=1
+# Leveraging the pre-built Docker images with
+# cargo-chef and the Rust toolchain
+FROM lukemathwalker/cargo-chef:latest-rust-1.56 AS chef
+WORKDIR /usr/src/
 
-WORKDIR /usr/src/${PROJECT_NAME}
+FROM chef AS planner
 COPY . .
+RUN cargo chef prepare --recipe-path recipe.json
 
-RUN cargo install --path .
+FROM chef AS builder
+COPY --from=planner /usr/src/recipe.json recipe.json
+# Build dependencies - this is the caching Docker layer!
+RUN cargo chef cook --release --recipe-path recipe.json
+# Build application
+COPY . .
+RUN cargo build --release
 
-FROM gcr.io/distroless/cc-debian11
-
-COPY --from=build /usr/local/cargo/bin/${PROJECT_NAME} /usr/local/bin/${PROJECT_NAME}
-
-CMD ["${PROJECT_NAME}"]
+# We do not need the Rust toolchain to run the binary!
+FROM debian:bullseye-slim AS runtime
+WORKDIR /usr/src/
+COPY --from=builder /usr/src/target/release/api_service /usr/local/bin
+ENTRYPOINT ["/usr/local/bin/api_service"]
