@@ -16,7 +16,10 @@ COPY . .
 RUN cargo build --release
 
 # We do not need the Rust toolchain to run the binary!
-FROM debian:bullseye-slim AS runtime
+FROM gcr.io/distroless/cc-debian11 AS runtime
 WORKDIR /usr/src/
-COPY --from=builder /usr/src/target/release/api_service /usr/local/bin
-ENTRYPOINT ["/usr/local/bin/api_service"]
+COPY --from=builder /usr/src/target/release/api_service /usr/bin
+
+EXPOSE 8080
+
+ENTRYPOINT ["api_service"]
